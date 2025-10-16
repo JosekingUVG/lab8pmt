@@ -4,12 +4,17 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -18,6 +23,7 @@ import coil.compose.AsyncImage
 import com.example.lab8pm.data.models.PexelsPhoto
 import com.example.lab8pm.data.network.ApiClient
 import com.example.lab8pm.viewmodels.HomeViewModel
+import com.example.lab8pm.viewmodels.UserProfileViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -37,7 +43,11 @@ fun DetailsScreen(
         navController.getBackStackEntry("home")
     }
     val homeViewModel: HomeViewModel = viewModel(homeEntry)
+    val userProfileViewModel: UserProfileViewModel = viewModel(homeEntry)
+
     val photos by homeViewModel.photos.collectAsState()
+    val favoriteIds by homeViewModel.favoriteIds.collectAsState()
+    val userProfile = userProfileViewModel.userProfile
 
     // Buscar la foto en la lista local primero
     val idInt = photoId.toIntOrNull()
@@ -83,6 +93,26 @@ fun DetailsScreen(
                             contentDescription = "Volver"
                         )
                     }
+                },
+                actions = {
+                    // Botón de perfil
+                    IconButton(onClick = { navController.navigate("profile") }) {
+                        if (userProfile.photoUri != null) {
+                            AsyncImage(
+                                model = userProfile.photoUri,
+                                contentDescription = "Perfil",
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = "Perfil",
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
                 }
             )
         }
@@ -127,6 +157,7 @@ fun DetailsScreen(
                 else -> {
                     val photo = displayPhoto!!
                     val context = LocalContext.current
+                    val isFavorite = favoriteIds.contains(photo.id)
 
                     Column(
                         modifier = Modifier
@@ -158,6 +189,64 @@ fun DetailsScreen(
                             text = "ID: ${photo.id}",
                             style = MaterialTheme.typography.bodySmall
                         )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Card de favoritos
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isFavorite) {
+                                    MaterialTheme.colorScheme.errorContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                }
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Label de estado
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (isFavorite) {
+                                            Icons.Default.Favorite
+                                        } else {
+                                            Icons.Default.FavoriteBorder
+                                        },
+                                        contentDescription = null,
+                                        tint = if (isFavorite) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (isFavorite) "Es favorito" else "No es favorito",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+
+                                // Botón para alternar
+                                Button(
+                                    onClick = { homeViewModel.toggleFavorite(photo) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isFavorite) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        }
+                                    )
+                                ) {
+                                    Text(if (isFavorite) "Quitar" else "Agregar")
+                                }
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(16.dp))
 

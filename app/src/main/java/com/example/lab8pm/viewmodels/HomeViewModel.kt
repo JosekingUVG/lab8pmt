@@ -1,10 +1,13 @@
 package com.example.lab8pm.viewmodels
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.lab8pm.data.local.AppDatabase
 import com.example.lab8pm.data.models.PexelsPhoto
-import com.example.lab8pm.data.network.ApiClient
+import com.example.lab8pm.data.models.SearchHistory
+import com.example.lab8pm.data.repository.PhotoRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,9 +18,16 @@ private const val TAG = "HomeVM"
 
 /**
  * ViewModel para la pantalla principal (HomeScreen)
- * Maneja la búsqueda de fotos, paginación y estados de carga
+ * Maneja la búsqueda de fotos, paginación, favoritos y búsquedas recientes
  */
-class HomeViewModel : ViewModel() {
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val repository: PhotoRepository
+
+    init {
+        val database = AppDatabase.getDatabase(application)
+        repository = PhotoRepository(database)
+    }
 
     // Estado de la lista de fotos
     private val _photos = MutableStateFlow<List<PexelsPhoto>>(emptyList())
@@ -31,10 +41,30 @@ class HomeViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // Búsquedas recientes
+    private val _recentSearches = MutableStateFlow<List<SearchHistory>>(emptyList())
+    val recentSearches: StateFlow<List<SearchHistory>> = _recentSearches.asStateFlow()
+
+    // IDs de favoritos para UI
+    private val _favoriteIds = MutableStateFlow<Set<Int>>(emptySet())
+    val favoriteIds: StateFlow<Set<Int>> = _favoriteIds.asStateFlow()
+
     // Control de paginación
     private var currentPage = 1
     private val perPage = 20
     private var lastQuery: String? = null
+
+    init {
+        // Observar búsquedas recientes
+        viewModelScope.launch {
+            repository.recentSearches.collect { searches ->
+                _recentSearches.value = searches
+            }
+        }
+
+        // Cargar IDs de favoritos
+        loadFavoriteIds()
+    }
 
     /**
      * Busca fotos según el término de búsqueda
@@ -56,23 +86,22 @@ class HomeViewModel : ViewModel() {
             _error.value = null
             Log.d(TAG, "searchPhotos: q='$query' page=$currentPage")
 
-            try {
-                val resp = ApiClient.pexelsApi.searchPhotos(query, currentPage, perPage)
-                val list = resp.photos
-                Log.d(TAG, "searchPhotos: recibidos=${list.size}")
+            val result = repository.searchPhotos(query, currentPage, perPage)
 
+            result.onSuccess { list ->
+                Log.d(TAG, "searchPhotos: recibidos=${list.size}")
                 _photos.value = list
 
                 if (list.isEmpty()) {
                     _error.value = "No se encontraron resultados para \"$query\""
                 }
-            } catch (t: Throwable) {
-                Log.e(TAG, "searchPhotos: error", t)
-                _error.value = t.message ?: "Error desconocido"
+            }.onFailure { error ->
+                Log.e(TAG, "searchPhotos: error", error)
+                _error.value = error.message ?: "Error desconocido. Verifica tu conexión."
                 _photos.value = emptyList()
-            } finally {
-                _loading.value = false
             }
+
+            _loading.value = false
         }
     }
 
@@ -98,9 +127,9 @@ class HomeViewModel : ViewModel() {
             _loading.value = true
             Log.d(TAG, "loadNextPage: q='$q' page=$currentPage")
 
-            try {
-                val resp = ApiClient.pexelsApi.searchPhotos(q, currentPage, perPage)
-                val more = resp.photos
+            val result = repository.searchPhotos(q, currentPage, perPage)
+
+            result.onSuccess { more ->
                 Log.d(TAG, "loadNextPage: recibidos=${more.size}")
 
                 if (more.isNotEmpty()) {
@@ -110,14 +139,44 @@ class HomeViewModel : ViewModel() {
                     currentPage -= 1
                     Log.d(TAG, "loadNextPage: página vacía, no incrementar")
                 }
-            } catch (t: Throwable) {
-                Log.e(TAG, "loadNextPage: error", t)
-                _error.value = t.message ?: "Error en paginación"
+            }.onFailure { error ->
+                Log.e(TAG, "loadNextPage: error", error)
+                _error.value = error.message ?: "Error en paginación"
                 currentPage -= 1
-            } finally {
-                _loading.value = false
+            }
+
+            _loading.value = false
+        }
+    }
+
+    // ==================== FAVORITOS ====================
+
+    /**
+     * Alternar favorito de una foto
+     */
+    fun toggleFavorite(photo: PexelsPhoto) {
+        viewModelScope.launch {
+            repository.toggleFavorite(photo)
+            loadFavoriteIds() // Recargar la lista de IDs
+        }
+    }
+
+    /**
+     * Cargar IDs de favoritos
+     */
+    private fun loadFavoriteIds() {
+        viewModelScope.launch {
+            repository.allFavorites.collect { favorites ->
+                _favoriteIds.value = favorites.map { it.id }.toSet()
             }
         }
+    }
+
+    /**
+     * Verificar si una foto es favorita
+     */
+    fun isFavorite(photoId: Int): Boolean {
+        return _favoriteIds.value.contains(photoId)
     }
 
     /**

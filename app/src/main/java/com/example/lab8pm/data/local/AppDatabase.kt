@@ -20,7 +20,7 @@ import com.example.lab8pm.data.models.User
         SearchHistory::class,
         User::class
     ],
-    version = 1,
+    version = 2, // Incrementamos versión por cambio en User
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,7 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lab8pm_database"
                 )
-                    .fallbackToDestructiveMigration() // Para desarrollo
+                    .fallbackToDestructiveMigration() // Para desarrollo - recrea DB si cambia
                     .build()
                 INSTANCE = instance
                 instance

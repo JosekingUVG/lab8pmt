@@ -64,13 +64,13 @@ data class SearchHistory(
 )
 
 /**
- * Entidad de Usuario - ejemplo base para Room
+ * Entidad de Usuario para perfil
  */
-@Entity(tableName = "user")
+@Entity(tableName = "user_profile")
 data class User(
-    @PrimaryKey val uid: Int,
-    @ColumnInfo(name = "first_name") val firstName: String?,
-    @ColumnInfo(name = "last_name") val lastName: String?
+    @PrimaryKey val uid: Int = 1, // Siempre usamos ID 1 para el perfil único
+    @ColumnInfo(name = "name") val name: String?,
+    @ColumnInfo(name = "photo_uri") val photoUri: String? // Guardamos URI como String
 )
 
 // ============ FUNCIONES DE EXTENSIÓN PARA CONVERSIÓN ============

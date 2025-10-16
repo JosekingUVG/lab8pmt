@@ -14,27 +14,35 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.example.lab8pm.viewmodels.UserProfileViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Pantalla de perfil de usuario
- * Permite editar nombre y foto de perfil
+ * Permite editar nombre y foto de perfil con persistencia en Room
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     navController: NavHostController,
-    userProfileViewModel: UserProfileViewModel = viewModel()
+    userProfileViewModel: UserProfileViewModel = viewModel(
+        viewModelStoreOwner = navController.getBackStackEntry("home")
+    )
 ) {
+    val context = LocalContext.current
     val userProfile = userProfileViewModel.userProfile
 
     // Estados locales temporales para edición
     var tempName by rememberSaveable { mutableStateOf(userProfile.name) }
     var tempPhotoUri by remember { mutableStateOf<Uri?>(userProfile.photoUri) }
+
+    // Estado para mostrar Snackbar
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // Launcher para seleccionar imagen de galería
     val launcher = rememberLauncherForActivityResult(
@@ -44,7 +52,14 @@ fun ProfileScreen(
         }
     )
 
+    // Sincronizar con los cambios del ViewModel
+    LaunchedEffect(userProfile.name, userProfile.photoUri) {
+        tempName = userProfile.name
+        tempPhotoUri = userProfile.photoUri
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Perfil de Usuario") },
@@ -127,8 +142,14 @@ fun ProfileScreen(
             Button(
                 onClick = {
                     userProfileViewModel.updateProfile(tempName, tempPhotoUri)
-                    // Opcional: navegar de vuelta
-                    // navController.popBackStack()
+
+                    // Mostrar confirmación
+                    kotlinx.coroutines.GlobalScope.launch {
+                        snackbarHostState.showSnackbar(
+                            message = "Perfil guardado correctamente",
+                            duration = SnackbarDuration.Short
+                        )
+                    }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -139,7 +160,7 @@ fun ProfileScreen(
 
             // Información adicional
             Text(
-                text = "Tip: Los cambios se guardan localmente durante esta sesión",
+                text = "Los cambios se guardan en la base de datos local",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
