@@ -1,7 +1,8 @@
 # Lab8PM - Aplicación de Galería de Fotos con Pexels API
 
 Aplicación Android desarrollada en Kotlin con Jetpack Compose que consume la API de Pexels para mostrar y buscar fotografías.
-
+## Video explicativo: 
+youtube.com/watch?v=FwFdbY8D9jo&feature=youtu.be 
 ## 📱 Características
 
 - ✅ Búsqueda de fotos en tiempo real con debounce
